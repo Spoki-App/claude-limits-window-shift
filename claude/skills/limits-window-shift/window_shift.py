@@ -21,6 +21,7 @@ REPO = "Spoki-App/claude-limits-window-shift"
 EXIT_CONFIG, EXIT_WARMUP, EXIT_AUTH = 2, 3, 4
 WEEK_SECONDS = 7 * 24 * 3600
 DRIFT_TOLERANCE_SECONDS = 3600
+CLOUD_TOOLS = ["Read"]
 CLAUDE_CANDIDATES = ("~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude", "~/.claude/local/claude")
 
 
@@ -360,7 +361,7 @@ def cloud_spec(config):
         "prompt": "Reply with the single word OK. Do not use any tool.",
         "model": "the smallest available (Haiku)",
         "repository": None,
-        "tools": [],
+        "tools": CLOUD_TOOLS,
         "connectors": [],
         "useful_until": planner.format_hhmm(plan.latest),
     }
@@ -375,10 +376,11 @@ def cmd_cloud_spec(args):
     print(f"  Schedule:   {spec['cron']}  ({spec['local_time']} {spec['days']})")
     print(f"  Prompt:     {spec['prompt']}")
     print(f"  Model:      {spec['model']}")
-    print("  Repository, tools, connectors: none")
+    print(f"  Tools:      {', '.join(spec['tools'])} only (an empty list is replaced by the full default set)")
+    print("  Repository, connectors: none")
     print(f"  A run that starts late still helps until {spec['useful_until']}.")
     print("Create it once from a Claude Code session logged in to the same account (/schedule),")
-    print("or from the scheduled tasks page of Claude Code on the web. Then check that no tools or connectors were added.")
+    print("or from the scheduled tasks page of Claude Code on the web. Then check its tools and connectors.")
     return 0
 
 

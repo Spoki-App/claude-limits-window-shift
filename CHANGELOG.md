@@ -13,3 +13,4 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - Real reset times read from the `rate_limit_event` of the headless stream, with weekly usage, pace and reset drift in `status`.
 - `cloud-spec`: the Claude Code scheduled task that opens the first window while the laptop sleeps.
 - Multiple Claude profiles (`CLAUDE_CONFIG_DIR`), `doctor`, `install.sh`, Claude Code plugin and skill.
+- `cloud-spec` asks for the `Read` tool only: a scheduled task created with an empty tool list gets the full default set.
