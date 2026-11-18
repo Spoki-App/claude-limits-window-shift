@@ -1,3 +1,4 @@
+import json
 import subprocess
 import unittest
 
@@ -42,6 +43,22 @@ class ParseStreamTests(unittest.TestCase):
         self.assertEqual(outcome["windows"]["seven_day"]["used_percent"], 41.0)
         self.assertEqual(outcome["tokens"], 122)
         self.assertEqual(outcome["status"], "allowed")
+
+    def test_reads_the_stream_claude_code_2_1_303_emits(self):
+        info = {"status": "allowed", "resetsAt": 1795008600, "rateLimitType": "five_hour", "overageStatus": "rejected",
+                "overageResetsAt": 1796083200, "overageDisabledReason": "org_level_disabled_until", "isUsingOverage": False,
+                "unifiedWindows": {"five_hour": {"utilization": 0.19, "resetsAt": 1795008600}, "seven_day": {"utilization": 0.03, "resetsAt": 1795316400}}}
+        usage = {"input_tokens": 2, "cache_creation_input_tokens": 608, "cache_read_input_tokens": 0, "output_tokens": 4}
+        stream = "\n".join([
+            init_line(),
+            json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "OK"}]}}),
+            json.dumps({"type": "rate_limit_event", "rate_limit_info": info}),
+            json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "OK", "usage": usage}),
+        ])
+        outcome = warmup.parse_stream(stream)
+        self.assertEqual(outcome["windows"], {"five_hour": {"resets_at": 1795008600, "used_percent": 19.0},
+                                              "seven_day": {"resets_at": 1795316400, "used_percent": 3.0}})
+        self.assertEqual((outcome["ok"], outcome["status"], outcome["tokens"]), (True, "allowed", 614))
 
     def test_reads_unified_windows_and_snake_case(self):
         unified = {"five_hour": {"resetsAt": 1795000000, "utilization": 0.2}, "seven_day": {"resets_at": 1795400000, "utilization": 0.5}}

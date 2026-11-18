@@ -192,6 +192,7 @@ Verified on 2026-11-18 with Claude Code 2.1.303.
 | `rate_limit_event` carries `resetsAt` and `utilization` in headless stream-json | [Agent SDK reference](https://code.claude.com/docs/en/agent-sdk/typescript.md) |
 | `--bare` never reads the subscription login | [Headless mode](https://code.claude.com/docs/en/headless.md) |
 | A window start is not rounded to the hour (community measurements) | the tool reads `resetsAt` instead of assuming |
+| One warm-up costs about 600 tokens and returns both windows in `unifiedWindows` | measured, see `tests/test_warmup.py` |
 
 Plans without a 5-hour limit don't need this tool: `status` will never see a 5-hour window.
 
@@ -200,8 +201,8 @@ Plans without a 5-hour limit don't need this tool: `status` will never see a 5-h
 <details>
 <summary>Does the warm-up eat my budget?</summary>
 
-A few hundred tokens of Haiku per window. Compared to a working session, it is noise.
-`status` shows the tokens the last warm-up used.
+About 600 tokens of Haiku per warm-up (measured with Claude Code 2.1.303), so under 2,500 a
+day. Compared to a working session, it is noise. `status` shows the tokens the last warm-up used.
 </details>
 
 <details>
