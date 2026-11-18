@@ -33,9 +33,9 @@ class RepoConsistencyTests(unittest.TestCase):
         self.assertIn(f"## [{version}]", (ROOT / "CHANGELOG.md").read_text())
 
     def test_every_command_is_documented(self):
-        readme, skill = (ROOT / "README.md").read_text(), (SKILL / "SKILL.md").read_text()
+        docs, skill = (ROOT / "docs" / "how-it-works.md").read_text(), (SKILL / "SKILL.md").read_text()
         for name in commands():
-            self.assertIn(f"`{name}`", readme, f"README.md misses {name}")
+            self.assertIn(f"`{name}`", docs, f"docs/how-it-works.md misses {name}")
             self.assertIn(f"$W {name}", skill, f"SKILL.md misses {name}")
 
     def test_one_message_setup_points_to_a_runbook_that_uses_real_commands(self):
@@ -45,6 +45,13 @@ class RepoConsistencyTests(unittest.TestCase):
         self.assertTrue(used, "SETUP.md runs no command")
         self.assertLessEqual(used, set(commands()))
         self.assertIn("releases/latest/download/install.sh", runbook)
+
+    def test_readme_stays_for_people(self):
+        readme = (ROOT / "README.md").read_text()
+        self.assertIn("docs/how-it-works.md", readme)
+        self.assertLess(len(readme.splitlines()), 130, "keep the README short; details go to docs/how-it-works.md")
+        for technical in ("--output-format", "CLAUDE_CONFIG_DIR", "launchd", "rate_limit_event"):
+            self.assertNotIn(technical, readme)
 
     def test_skill_name_matches_folder_and_plugin(self):
         self.assertIn(f"name: {SKILL.name}\n", (SKILL / "SKILL.md").read_text())
