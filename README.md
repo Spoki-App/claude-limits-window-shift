@@ -14,6 +14,8 @@ This starts it for you, before your day begins.
 
 An open source project by [Spoki](https://spoki.com).
 
+<a href="media/claude-limits-window-shift-launch-16x9.mp4"><img src="media/poster.jpg" width="720" alt="Watch the 25-second video: a tiny OK at 6:00 gives you 3 fresh Claude windows during your workday instead of 2."></a>
+
 </div>
 
 ## Set it up with one message
