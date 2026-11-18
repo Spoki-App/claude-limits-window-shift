@@ -34,6 +34,7 @@ The weekly reset is fixed per account by Anthropic: the tool shows it and the pa
 | Add a day off | `$W setup --skip-date 2026-12-24` |
 | Add another Claude profile | `$W setup --profile work --config-dir ~/.claude-work` |
 | Run `tick` every 5 minutes on this machine | `$W install` (remove: `$W uninstall`) |
+| Remove everything | `$W uninstall`, then the user deletes the routine at https://claude.ai/code/routines (it cannot be deleted by tool), then remove `~/claude-limits-window-shift`, `~/.config/claude-limits-window-shift` and this skill's link, after confirming with the user |
 | What the cloud task must look like | `$W cloud-spec` (`--json` for exact fields) |
 | Current windows, next action, weekly pace | `$W status` |
 | Send one warm-up now | `$W warm` |
