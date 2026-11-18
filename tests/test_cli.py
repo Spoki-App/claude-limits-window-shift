@@ -67,6 +67,24 @@ class SetupAndPlanTests(CliCase):
         self.run_cli("setup", "--remove-profile", "default")
         self.assertEqual([p["name"] for p in store.load_config()["profiles"]], ["main"])
 
+    def test_setup_from_a_second_claude_profile_adds_it_once(self):
+        self.setup_workday()
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": os.path.join(self.folder.name, "work-claude")}):
+            self.run_cli("setup", "--start", "08:00")
+            code, out, _ = self.run_cli("setup", "--end", "17:00")
+        profiles = store.load_config()["profiles"]
+        self.assertEqual(code, 0)
+        self.assertEqual(len(profiles), 2)
+        self.assertEqual(profiles[1]["config_dir"], os.path.join(self.folder.name, "work-claude"))
+        self.assertIn("work-claude", profiles[1]["name"])
+        self.assertIn(f"profiles=default,{profiles[1]['name']}", out)
+
+    def test_hints_are_runnable_commands(self):
+        code, _, err = self.run_cli("status")
+        self.assertEqual(code, cli.EXIT_CONFIG)
+        self.assertIn("python3 -I ", err)
+        self.assertIn("window_shift.py setup --start 09:00 --end 18:00", err)
+
     def test_bad_timezone_is_refused(self):
         code, _, err = self.run_cli("setup", "--start", "09:00", "--end", "18:00", "--timezone", "Mars/Base")
         self.assertEqual(code, cli.EXIT_CONFIG)
@@ -82,6 +100,22 @@ class SetupAndPlanTests(CliCase):
         code, out, _ = self.run_cli("cloud-spec", "--json")
         spec = json.loads(out)
         self.assertEqual((code, spec["cron"], spec["tools"], spec["connectors"]), (0, "CRON_TZ=Europe/Rome 7 6 * * 1-5", ["Read"], []))
+
+    def test_cloud_spec_gives_a_ready_routine_body(self):
+        self.setup_workday()
+        routine = json.loads(self.run_cli("cloud-spec", "--json")[1])["routine"]
+        context = routine["job_config"]["ccr"]["session_context"]
+        event = routine["job_config"]["ccr"]["events"][0]["data"]
+        self.assertEqual((routine["cron_expression"], routine["clear_mcp_connections"]), ("CRON_TZ=Europe/Rome 7 6 * * 1-5", True))
+        self.assertEqual((context["allowed_tools"], context["sources"]), (["Read"], []))
+        self.assertEqual(event["message"], {"role": "user", "content": "Reply with the single word OK. Do not use any tool."})
+        self.assertRegex(event["uuid"], r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-")
+        self.assertEqual(routine["job_config"]["ccr"]["environment_id"], "ENVIRONMENT_ID")
+
+    def test_setup_accepts_loose_hours(self):
+        code, out, _ = self.run_cli("setup", "--start", "9", "--end", "18", "--timezone", "Europe/Rome", "--claude", self.claude)
+        self.assertEqual(code, 0)
+        self.assertIn("With a warm-up at 06:00", out)
 
     def test_cloud_spec_never_asks_for_an_empty_tool_list(self):
         self.setup_workday()
@@ -133,7 +167,7 @@ class TickTests(CliCase):
         with mock.patch.object(cli, "notify") as notify:
             code, out, _ = self.run_cli("warm")
         self.assertEqual(code, cli.EXIT_AUTH)
-        self.assertIn("Fix: CLAUDE_CONFIG_DIR=/profiles/2/cli claude auth login", out)
+        self.assertIn(f"Fix: CLAUDE_CONFIG_DIR=/profiles/2/cli {self.claude} auth login", out)
         notify.assert_called_once()
 
     def test_weekly_drift_is_reported(self):

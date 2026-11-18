@@ -17,15 +17,31 @@ An open source project by [Spoki](https://spoki.com).
 
 ## Get started
 
+Send this to Claude Code, with your own hours:
+
+```text
+Set up claude-limits-window-shift by following https://raw.githubusercontent.com/Spoki-App/claude-limits-window-shift/main/SETUP.md (install it, start its scheduler, create its daily cloud task). I work 9-18, Monday to Friday.
+```
+
+Claude installs it, starts the scheduler, sends a first warm-up, creates the cloud task and tells
+you your new windows. The only thing it may ask you is to finish a sign-in in the browser.
+The words in brackets matter: they tell Claude you allow the installer, the background job and
+the cloud task, so it doesn't stop to ask at every step.
+
+> **Claude, setting this up for someone?** Follow [SETUP.md](SETUP.md)
+> ([raw](https://raw.githubusercontent.com/Spoki-App/claude-limits-window-shift/main/SETUP.md)).
+
+<details>
+<summary>Prefer to do it by hand?</summary>
+
 ```sh
 curl -fsSL https://github.com/Spoki-App/claude-limits-window-shift/releases/latest/download/install.sh | sh -s -- --start 09:00 --end 18:00
 ```
 
 That installs the Claude Code skill, saves your workday, and runs a 5-minute scheduler on your
-machine (launchd on macOS, a systemd user timer on Linux). Then add the
+machine (launchd on macOS, a systemd user timer on Linux). Then create the
 [cloud warm-up](#the-cloud-warm-up) once, so the first window opens even while your laptop sleeps.
-
-Or ask Claude: *"set up limits-window-shift for my 9 to 6 workday"*.
+</details>
 
 ## Why
 
@@ -124,8 +140,8 @@ $ window_shift.py cloud-spec
   Repository, connectors: none
 ```
 
-Create it with `/schedule` in a Claude Code session logged in to the same account (the skill
-does this for you), or from the scheduled tasks page of Claude Code on the web. Then open the
+`cloud-spec --json` also prints the complete routine body. Create it with `/schedule` in a
+Claude Code session logged in to the same account (the setup message does this for you), or from the scheduled tasks page of Claude Code on the web. Then open the
 task and check its tools and connectors: a task created with no tools gets the full default
 set, and one created without an explicit "no connectors" gets all of yours.
 

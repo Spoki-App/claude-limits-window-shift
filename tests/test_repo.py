@@ -38,6 +38,14 @@ class RepoConsistencyTests(unittest.TestCase):
             self.assertIn(f"`{name}`", readme, f"README.md misses {name}")
             self.assertIn(f"$W {name}", skill, f"SKILL.md misses {name}")
 
+    def test_one_message_setup_points_to_a_runbook_that_uses_real_commands(self):
+        readme, runbook = (ROOT / "README.md").read_text(), (ROOT / "SETUP.md").read_text()
+        self.assertIn("by following https://raw.githubusercontent.com/Spoki-App/claude-limits-window-shift/main/SETUP.md (install it", readme)
+        used = set(re.findall(r'python3 -I "\$W" ([a-z-]+)', runbook))
+        self.assertTrue(used, "SETUP.md runs no command")
+        self.assertLessEqual(used, set(commands()))
+        self.assertIn("releases/latest/download/install.sh", runbook)
+
     def test_skill_name_matches_folder_and_plugin(self):
         self.assertIn(f"name: {SKILL.name}\n", (SKILL / "SKILL.md").read_text())
         self.assertEqual(json.loads((ROOT / "claude/.claude-plugin/plugin.json").read_text())["name"], SKILL.name)

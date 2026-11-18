@@ -5,6 +5,17 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- One-message setup: paste a sentence with your hours into Claude Code and it follows `SETUP.md` to install, check the login, send a first warm-up and create the cloud task.
+- `cloud-spec --json` includes `routine`, the complete scheduled task body (cron with `CRON_TZ`, Haiku, `Read` only, no connectors, fresh event id).
+
+### Changed
+- Times accept `9`, `9.30` and `17h30` as well as `09:00`.
+- `setup` run from another Claude profile (`CLAUDE_CONFIG_DIR`) adds it as a new profile instead of ignoring it.
+- Every hint (`doctor` fixes, login, next steps) is a full command you can paste, with the real paths.
+- A missing optional warm-up flag is a `WARN` in `doctor`, not a failure.
+- Warm-ups never inherit `CLAUDE_CODE_OAUTH_TOKEN`, so they test the same login the scheduler uses.
+
 ## [0.1.0] - 2026-11-18
 
 ### Added
