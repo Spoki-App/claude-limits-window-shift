@@ -46,9 +46,11 @@ The weekly reset is fixed per account by Anthropic: the tool shows it and the pa
 1. Ask for work hours and days if you don't know them. Run `$W plan` and show the result.
 2. `$W setup ...`, then `$W install`, then `$W doctor`.
 3. Cloud warm-up: run `$W cloud-spec --json` and create that scheduled task with the
-   `/schedule` skill, in a session logged in to the same Claude account. No repository, no
-   tools, no connectors, the smallest model. Afterwards check the task: if tools or
-   connectors were added by default, remove them. Never create it for a different account.
+   `/schedule` skill, in a session logged in to the same Claude account: the cron as given
+   (it keeps the `CRON_TZ=` prefix), no repository, `allowed_tools` exactly `["Read"]` (an
+   empty list is replaced by the full default set), `clear_mcp_connections: true`, the
+   smallest model. Afterwards read the task back and check tools and connectors. Never
+   create it for a different account.
 4. `$W status` the next workday to confirm the window opened at the planned time.
 
 ## Rules

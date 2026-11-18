@@ -81,7 +81,12 @@ class SetupAndPlanTests(CliCase):
         self.setup_workday()
         code, out, _ = self.run_cli("cloud-spec", "--json")
         spec = json.loads(out)
-        self.assertEqual((code, spec["cron"], spec["tools"]), (0, "CRON_TZ=Europe/Rome 7 6 * * 1-5", []))
+        self.assertEqual((code, spec["cron"], spec["tools"], spec["connectors"]), (0, "CRON_TZ=Europe/Rome 7 6 * * 1-5", ["Read"], []))
+
+    def test_cloud_spec_never_asks_for_an_empty_tool_list(self):
+        self.setup_workday()
+        _, out, _ = self.run_cli("cloud-spec")
+        self.assertIn("Tools:      Read only", out)
 
 
 class TickTests(CliCase):

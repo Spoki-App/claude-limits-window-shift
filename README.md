@@ -120,12 +120,14 @@ $ window_shift.py cloud-spec
   Schedule:   CRON_TZ=Europe/Rome 7 6 * * 1-5  (06:07 mon-fri)
   Prompt:     Reply with the single word OK. Do not use any tool.
   Model:      the smallest available (Haiku)
-  Repository, tools, connectors: none
+  Tools:      Read only (an empty list is replaced by the full default set)
+  Repository, connectors: none
 ```
 
 Create it with `/schedule` in a Claude Code session logged in to the same account (the skill
 does this for you), or from the scheduled tasks page of Claude Code on the web. Then open the
-task and check that no tools or connectors were added by default.
+task and check its tools and connectors: a task created with no tools gets the full default
+set, and one created without an explicit "no connectors" gets all of yours.
 
 ## Commands
 
