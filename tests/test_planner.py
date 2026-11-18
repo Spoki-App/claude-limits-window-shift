@@ -21,7 +21,9 @@ class ParsingTests(unittest.TestCase):
     def test_times(self):
         self.assertEqual(planner.parse_hhmm("09:30"), 570)
         self.assertEqual(planner.parse_hhmm("7:05"), 425)
-        for bad in ("24:00", "9", "09:60", "nine"):
+        for loose, minutes in (("9", 540), ("18", 1080), ("9.30", 570), ("17h30", 1050)):
+            self.assertEqual(planner.parse_hhmm(loose), minutes, loose)
+        for bad in ("24:00", "9:5", "09:60", "nine", "9:"):
             with self.assertRaises(planner.PlanError):
                 planner.parse_hhmm(bad)
 

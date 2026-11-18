@@ -16,10 +16,10 @@ class PlanError(ValueError):
 
 
 def parse_hhmm(text):
-    match = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", str(text).strip())
+    match = re.fullmatch(r"([01]?\d|2[0-3])(?:[:.h]([0-5]\d))?", str(text).strip().lower())
     if not match:
         raise PlanError(f"invalid time {text!r}, expected HH:MM")
-    return int(match.group(1)) * 60 + int(match.group(2))
+    return int(match.group(1)) * 60 + int(match.group(2) or 0)
 
 
 def format_hhmm(minutes):

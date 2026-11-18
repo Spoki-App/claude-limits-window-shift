@@ -3,10 +3,13 @@ import argparse
 import datetime
 import json
 import os
+import re
+import shlex
 import shutil
 import subprocess
 import sys
 import urllib.request
+import uuid
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 HERE = os.path.dirname(os.path.realpath(__file__))
@@ -22,6 +25,10 @@ EXIT_CONFIG, EXIT_WARMUP, EXIT_AUTH = 2, 3, 4
 WEEK_SECONDS = 7 * 24 * 3600
 DRIFT_TOLERANCE_SECONDS = 3600
 CLOUD_TOOLS = ["Read"]
+CLOUD_MODEL = "claude-haiku-5-5"
+CLOUD_PROMPT = "Reply with the single word OK. Do not use any tool."
+ROUTINE_NAME = "claude-limits-window-shift warm-up"
+INSTALL_CLAUDE = "install it with curl -fsSL https://claude.ai/install.sh | bash"
 CLAUDE_CANDIDATES = ("~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude", "~/.claude/local/claude")
 
 
@@ -79,7 +86,7 @@ def load_config(required=True):
     except store.StoreError as error:
         raise CliError(EXIT_CONFIG, str(error))
     if required and not config.get("workday"):
-        raise CliError(EXIT_CONFIG, "not set up yet: run window_shift.py setup --start 09:00 --end 18:00")
+        raise CliError(EXIT_CONFIG, f"not set up yet: run {self_command('setup --start 09:00 --end 18:00')}")
     return config
 
 
@@ -103,19 +110,42 @@ def selected_profiles(config, name=None):
 def claude_path(config):
     path = find_claude(config.get("claude"))
     if not path:
-        raise CliError(EXIT_CONFIG, "claude CLI not found: install Claude Code or pass setup --claude /path/to/claude")
+        raise CliError(EXIT_CONFIG, f"claude CLI not found: {INSTALL_CLAUDE}, or {self_command('setup --claude /path/to/claude')}")
     return path
 
 
-def login_hint(profile):
-    prefix = f"CLAUDE_CONFIG_DIR={profile['config_dir']} " if profile.get("config_dir") else ""
-    return f"{prefix}claude auth login"
+def self_command(arguments):
+    return f"python3 -I {shlex.quote(os.path.realpath(__file__))} {arguments}"
+
+
+def login_hint(profile, config):
+    prefix = f"CLAUDE_CONFIG_DIR={shlex.quote(profile['config_dir'])} " if profile.get("config_dir") else ""
+    return f"{prefix}{shlex.quote(find_claude(config.get('claude')) or 'claude')} auth login"
 
 
 def upsert_profile(config, name, config_dir):
     profiles = [p for p in config.get("profiles", []) if p["name"] != name]
     profiles.append({"name": name, "config_dir": config_dir})
     config["profiles"] = profiles
+
+
+def real_config_dir(config_dir):
+    return os.path.realpath(os.path.expanduser(config_dir or "~/.claude"))
+
+
+def profile_name_for(config, config_dir):
+    if not config.get("profiles"):
+        return "default"
+    relative = os.path.relpath(real_config_dir(config_dir), os.path.realpath(os.path.expanduser("~")))
+    base = re.sub(r"[^a-z0-9]+", "-", relative.lower()).strip("-") or "profile"
+    names = {p["name"] for p in config["profiles"]}
+    return next(name for name in (base, *(f"{base}-{n}" for n in range(2, 100))) if name not in names)
+
+
+def ensure_profile(config, config_dir):
+    if any(real_config_dir(p.get("config_dir")) == real_config_dir(config_dir) for p in config.get("profiles", [])):
+        return
+    upsert_profile(config, profile_name_for(config, config_dir), config_dir)
 
 
 def apply_workday_args(workday, args):
@@ -142,20 +172,21 @@ def cmd_setup(args):
     zone(workday["timezone"])
     plan, days = workday_plan(workday)
     config["workday"] = workday
+    config_dir = args.config_dir or os.environ.get("CLAUDE_CONFIG_DIR")
     if args.remove_profile:
         config["profiles"] = [p for p in config.get("profiles", []) if p["name"] != args.remove_profile]
-    if args.profile:
-        upsert_profile(config, args.profile, args.config_dir or os.environ.get("CLAUDE_CONFIG_DIR"))
-    if not config.get("profiles"):
-        upsert_profile(config, "default", args.config_dir or os.environ.get("CLAUDE_CONFIG_DIR"))
+    elif args.profile:
+        upsert_profile(config, args.profile, config_dir)
+    else:
+        ensure_profile(config, config_dir)
     config["claude"] = find_claude(args.claude or config.get("claude"))
     config["version"] = 1
     path = store.save_config(config)
-    print(f"SAVED {path}")
+    print(f"SAVED {path} profiles={','.join(p['name'] for p in config['profiles'])}")
     print()
     print(planner.render_plan(plan, days))
     print()
-    print("Next: window_shift.py install, then create the cloud warm-up shown by window_shift.py cloud-spec")
+    print(f"Next: {self_command('install')}, then create the cloud warm-up shown by {self_command('cloud-spec')}")
 
 
 def cmd_plan(args):
@@ -197,19 +228,19 @@ def warm_profile(config, profile, now, runner=None):
     state = store.record(store.load_state(profile["name"]), outcome, now.timestamp(), plan.window * 60)
     if outcome.get("error_kind") == "auth" and state.get("notified_on") != now.date().isoformat():
         state["notified_on"] = now.date().isoformat()
-        notify("Claude window shift", f"Profile {profile['name']} is logged out. Run: {login_hint(profile)}")
+        notify("Claude window shift", f"Profile {profile['name']} is logged out. Run: {login_hint(profile, config)}")
     store.save_state(profile["name"], state)
     store.append_log({"profile": profile["name"], "action": "warm", "ok": outcome["ok"], "error": outcome.get("error"),
                       "status": outcome.get("status"), "tokens": outcome.get("tokens"), "windows": outcome.get("windows")})
     return outcome, state
 
 
-def outcome_line(profile, outcome, tz):
+def outcome_line(profile, outcome, tz, config):
     if outcome["ok"]:
         five = (outcome.get("windows") or {}).get("five_hour", {})
         until = f", window until {planner.clock(five['resets_at'], tz)}" if five.get("resets_at") else ""
         return f"WARMED profile={profile['name']} tokens={outcome.get('tokens')}{until}"
-    hint = f" Fix: {login_hint(profile)}" if outcome.get("error_kind") == "auth" else ""
+    hint = f" Fix: {login_hint(profile, config)}" if outcome.get("error_kind") == "auth" else ""
     return f"WARMUP_FAILED profile={profile['name']} kind={outcome.get('error_kind')}: {outcome.get('error')}{hint}"
 
 
@@ -222,7 +253,7 @@ def cmd_warm(args):
             print(" ".join(warmup.build_command(claude_path(config), "")))
             continue
         outcome, _ = warm_profile(config, profile, now)
-        print(outcome_line(profile, outcome, now.tzinfo))
+        print(outcome_line(profile, outcome, now.tzinfo, config))
         if not outcome["ok"]:
             worst = max(worst, EXIT_AUTH if outcome.get("error_kind") == "auth" else EXIT_WARMUP)
     return worst
@@ -243,7 +274,7 @@ def cmd_tick(args):
                 print(f"{decision.upper()} profile={profile['name']} {reason}")
                 continue
             outcome, _ = warm_profile(config, profile, now)
-            print(outcome_line(profile, outcome, now.tzinfo))
+            print(outcome_line(profile, outcome, now.tzinfo, config))
     return 0
 
 
@@ -289,14 +320,14 @@ def describe_weekly(state, now, plan, days, skip_dates):
     return lines
 
 
-def describe_last(state, profile, tz):
+def describe_last(state, profile, tz, config):
     last = state.get("last_attempt_at")
     if not last:
         return "last warm-up: none yet"
     when = planner.clock(last, tz)
     if state.get("last_ok"):
         return f"last warm-up: {when} ok, {state.get('last_tokens')} tokens"
-    hint = f" Fix: {login_hint(profile)}" if state.get("last_error_kind") == "auth" else ""
+    hint = f" Fix: {login_hint(profile, config)}" if state.get("last_error_kind") == "auth" else ""
     return f"last warm-up: {when} failed ({state.get('last_error_kind')}): {state.get('last_error')}{hint}"
 
 
@@ -308,7 +339,7 @@ def cmd_status(args):
     resets = " ".join(planner.format_hhmm(r) for r in plan.resets)
     print(f"claude-limits-window-shift {version()}")
     print(f"Workday {workday['start']}-{workday['end']} {planner.format_days(days)} ({workday['timezone']}), warm-up {planner.format_hhmm(plan.anchor)}, resets {resets}")
-    print(f"Scheduler: {'installed' if service.installed() else 'not installed, run window_shift.py install'}")
+    print(f"Scheduler: {'installed' if service.installed() else 'not installed, run ' + self_command('install')}")
     print(f"Cloud warm-up: {service.cloud_cron(plan, days, workday['timezone'])} (create it once, see cloud-spec)")
     for profile in selected_profiles(config, args.profile):
         state = store.load_state(profile["name"])
@@ -317,7 +348,7 @@ def cmd_status(args):
         print(f"[{profile['name']}] {profile.get('config_dir') or '~/.claude'}")
         print(f"  5h window: {describe_five_hour(state, now, now.tzinfo)}")
         print(f"  next tick: {'warm-up' if decision == planner.WARM else 'skip'} ({reason})")
-        print(f"  {describe_last(state, profile, now.tzinfo)}")
+        print(f"  {describe_last(state, profile, now.tzinfo, config)}")
         for line in describe_weekly(state, now, plan, days, workday.get("skip_dates")):
             print(f"  {line}")
     return 0
@@ -339,7 +370,8 @@ def cmd_install(args):
     if not ok:
         raise CliError(EXIT_CONFIG, f"INSTALL_FAILED {where} {detail}".strip())
     print(f"INSTALLED {where} (tick every {service.INTERVAL_SECONDS // 60} minutes)")
-    print("The laptop only ticks while awake: add the cloud warm-up for the early anchor, see window_shift.py cloud-spec")
+    print(f"CLI {os.path.realpath(__file__)}")
+    print(f"The laptop only ticks while awake: add the cloud warm-up for the early anchor, see {self_command('cloud-spec')}")
     return 0
 
 
@@ -358,12 +390,26 @@ def cloud_spec(config):
         "local_time": planner.format_hhmm(minute),
         "days": planner.format_days(days),
         "timezone": timezone,
-        "prompt": "Reply with the single word OK. Do not use any tool.",
+        "prompt": CLOUD_PROMPT,
         "model": "the smallest available (Haiku)",
         "repository": None,
         "tools": CLOUD_TOOLS,
         "connectors": [],
         "useful_until": planner.format_hhmm(plan.latest),
+        "routine": routine_body(service.cloud_cron(plan, days, timezone)),
+    }
+
+
+def routine_body(cron):
+    message = {"role": "user", "content": CLOUD_PROMPT}
+    event = {"uuid": str(uuid.uuid4()), "session_id": "", "type": "user", "parent_tool_use_id": None, "message": message}
+    context = {"model": CLOUD_MODEL, "sources": [], "allowed_tools": CLOUD_TOOLS}
+    return {
+        "name": ROUTINE_NAME,
+        "cron_expression": cron,
+        "enabled": True,
+        "clear_mcp_connections": True,
+        "job_config": {"ccr": {"environment_id": "ENVIRONMENT_ID", "session_context": context, "events": [{"data": event}]}},
     }
 
 
@@ -384,9 +430,10 @@ def cmd_cloud_spec(args):
     return 0
 
 
-def check(ok, label, fix=""):
-    print(f"{'OK  ' if ok else 'FAIL'} {label}{'' if ok or not fix else '. Fix: ' + fix}")
-    return ok
+def check(ok, label, fix="", soft=False):
+    status = "OK  " if ok else "WARN" if soft else "FAIL"
+    print(f"{status} {label}{'' if ok or not fix else '. Fix: ' + fix}")
+    return ok or soft
 
 
 def doctor_profiles(config, claude):
@@ -395,7 +442,7 @@ def doctor_profiles(config, claude):
         auth = warmup.auth_status(claude, profile.get("config_dir"))
         logged = bool(auth and auth["logged_in"])
         method = f" ({auth['method']})" if logged and auth.get("method") else ""
-        results.append(check(logged, f"profile {profile['name']} logged in{method}", login_hint(profile)))
+        results.append(check(logged, f"profile {profile['name']} logged in{method}", login_hint(profile, config)))
     return results
 
 
@@ -406,19 +453,19 @@ def cmd_doctor(_args):
         zone(config["workday"]["timezone"])
         results.append(check(True, f"timezone {config['workday']['timezone']}"))
     except CliError as error:
-        results.append(check(False, str(error), "window_shift.py setup --timezone Europe/Rome"))
+        results.append(check(False, str(error), self_command("setup --timezone Europe/Rome")))
     claude = find_claude(config.get("claude"))
-    results.append(check(bool(claude), f"claude CLI {claude or 'not found'}", "install Claude Code or setup --claude PATH"))
+    results.append(check(bool(claude), f"claude CLI {claude or 'not found'}", INSTALL_CLAUDE))
     if claude:
         help_text = warmup.claude_help(claude, warmup.clean_env(None))
         missing = [flag[0] for flag in warmup.OPTIONAL_FLAGS if flag not in warmup.supported_flags(help_text)]
-        results.append(check(not missing, "minimal warm-up flags supported" + (f", missing {' '.join(missing)}" if missing else ""), "update Claude Code"))
+        results.append(check(not missing, "minimal warm-up flags supported" + (f", missing {' '.join(missing)}" if missing else ""), "update Claude Code (warm-ups still work, they just load more context)", soft=True))
         results += doctor_profiles(config, claude)
-    results.append(check(service.installed(), "scheduler installed", "window_shift.py install"))
+    results.append(check(service.installed(), "scheduler installed", self_command("install")))
     scheduled = service.scheduled_script()
     if scheduled:
         current = scheduled == os.path.realpath(__file__)
-        results.append(check(current, f"scheduler runs {scheduled}", "window_shift.py install, from the copy you keep"))
+        results.append(check(current, f"scheduler runs {scheduled}", self_command("install") + ", from the copy you keep"))
     return 0 if all(results) else 1
 
 

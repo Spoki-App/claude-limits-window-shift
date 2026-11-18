@@ -103,7 +103,8 @@ class CommandTests(unittest.TestCase):
         self.assertNotIn("--bare", warmup.build_command("claude", HELP_ALL + "  --bare  minimal\n"))
 
     def test_clean_env_keeps_only_safe_keys(self):
-        source = {"HOME": "/h", "PATH": "/p", "CLAUDECODE": "1", "ANTHROPIC_BASE_URL": "http://proxy", "CLAUDE_CONFIG_DIR": "/other"}
+        source = {"HOME": "/h", "PATH": "/p", "CLAUDECODE": "1", "ANTHROPIC_BASE_URL": "http://proxy", "CLAUDE_CONFIG_DIR": "/other",
+                  "CLAUDE_CODE_OAUTH_TOKEN": "host-session-token"}
         env = warmup.clean_env("/profile", source)
         self.assertEqual(env, {"HOME": "/h", "PATH": "/p", "CLAUDE_CONFIG_DIR": "/profile"})
         self.assertNotIn("CLAUDE_CONFIG_DIR", warmup.clean_env(None, source))

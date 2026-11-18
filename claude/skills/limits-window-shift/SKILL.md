@@ -41,17 +41,19 @@ The weekly reset is fixed per account by Anthropic: the tool shows it and the pa
 | Check claude, login, flags, scheduler | `$W doctor` |
 | Version and updates | `$W version` |
 
-## Setting it up for the user
+## Setting it up or changing it
 
-1. Ask for work hours and days if you don't know them. Run `$W plan` and show the result.
-2. `$W setup ...`, then `$W install`, then `$W doctor`.
-3. Cloud warm-up: run `$W cloud-spec --json` and create that scheduled task with the
-   `/schedule` skill, in a session logged in to the same Claude account: the cron as given
-   (it keeps the `CRON_TZ=` prefix), no repository, `allowed_tools` exactly `["Read"]` (an
-   empty list is replaced by the full default set), `clear_mcp_connections: true`, the
-   smallest model. Afterwards read the task back and check tools and connectors. Never
-   create it for a different account.
-4. `$W status` the next workday to confirm the window opened at the planned time.
+Full setup is the runbook
+https://raw.githubusercontent.com/Spoki-App/claude-limits-window-shift/main/SETUP.md. In short:
+
+1. Hours and days from the user (ask once if missing). `$W plan` shows the result.
+2. `$W setup ...`, `$W install`, `$W doctor` until every line is `OK`.
+3. `$W warm` once.
+4. Cloud warm-up: the `routine` field of `$W cloud-spec --json` is the complete body for
+   `RemoteTrigger` (`/schedule`). Fill `ENVIRONMENT_ID`, keep the rest as given, update the
+   existing `claude-limits-window-shift warm-up` routine instead of creating a second one, then
+   read it back. Never create it for a different account than this session's.
+5. When the warm-up time changes, repeat step 4 so the routine follows.
 
 ## Rules
 
