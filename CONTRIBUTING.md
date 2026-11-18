@@ -41,4 +41,5 @@ One topic per PR, with a test that fails without the change. Add a line under
 and every review thread resolved. `scripts/release.sh X.Y.Z` on a clean `main` follows the same
 path: it bumps `VERSION`, the plugin manifest and the changelog on a `release/vX.Y.Z` branch,
 opens the release PR, waits for CI, merges it, then tags the merge and publishes the GitHub
-release with `install.sh` attached.
+release with `install.sh` attached. If it stops halfway (CI failed or slow), fix the cause and run
+`scripts/release.sh X.Y.Z finish`: it skips whatever is already done.
