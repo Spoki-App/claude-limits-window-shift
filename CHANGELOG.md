@@ -5,6 +5,10 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- `main` is protected (pull requests only, green CI, resolved review threads), so `scripts/release.sh` now ships each release through a release PR before tagging.
+- SKILL.md explains how to remove everything, including the cloud task.
+
 ## [0.2.0] - 2026-11-18
 
 ### Added
