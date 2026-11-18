@@ -1,0 +1,12 @@
+{
+  "name": "claude-limits-window-shift",
+  "owner": {"name": "Spoki", "url": "https://github.com/Spoki-App"},
+  "metadata": {"description": "Start Claude's 5-hour usage windows when they fit your workday."},
+  "plugins": [
+    {
+      "name": "limits-window-shift",
+      "source": "./claude",
+      "description": "Plan and send tiny warm-ups so Claude's 5-hour windows line up with your work hours, and see your weekly pace."
+    }
+  ]
+}

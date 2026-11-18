@@ -1,0 +1,18 @@
+{
+  "name": "limits-window-shift",
+  "version": "0.1.0",
+  "description": "Plan and send tiny warm-ups so Claude's 5-hour windows line up with your work hours, and see your weekly pace.",
+  "author": {
+    "name": "Spoki",
+    "url": "https://github.com/Spoki-App"
+  },
+  "homepage": "https://github.com/Spoki-App/claude-limits-window-shift",
+  "repository": "https://github.com/Spoki-App/claude-limits-window-shift",
+  "license": "MIT",
+  "keywords": [
+    "usage-limits",
+    "rate-limits",
+    "scheduler",
+    "productivity"
+  ]
+}

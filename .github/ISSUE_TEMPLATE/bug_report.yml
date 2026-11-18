@@ -1,0 +1,28 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Never paste tokens, credentials or account details here. For security issues, use a private advisory (see SECURITY.md)."
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `window_shift.py version` and `claude --version`
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it fail?
+      options: [Plan, Setup or install, Local tick, Cloud warm-up, Status or weekly pace, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include `window_shift.py doctor` and `status` output, redacted.
+    validations:
+      required: true
