@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-18
+
 ### Added
 - One-message setup: paste a sentence with your hours into Claude Code and it follows `SETUP.md` to install, check the login, send a first warm-up and create the cloud task.
 - `cloud-spec --json` includes `routine`, the complete scheduled task body (cron with `CRON_TZ`, Haiku, `Read` only, no connectors, fresh event id).
