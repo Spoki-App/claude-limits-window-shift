@@ -53,6 +53,16 @@ class RepoConsistencyTests(unittest.TestCase):
         for technical in ("--output-format", "CLAUDE_CONFIG_DIR", "launchd", "rate_limit_event"):
             self.assertNotIn(technical, readme)
 
+    def test_readme_video_opens_in_the_browser(self):
+        readme = (ROOT / "README.md").read_text()
+        videos = re.findall(r'href="([^"]+\.mp4)"', readme)
+        self.assertTrue(videos, "README links no video")
+        prefix = "https://cdn.jsdelivr.net/gh/Spoki-App/claude-limits-window-shift@main/"
+        for url in videos:
+            self.assertTrue(url.startswith(prefix), f"{url}: GitHub serves mp4 as a download, use jsDelivr")
+            self.assertTrue((ROOT / url[len(prefix):]).is_file(), url)
+        self.assertNotIn("```mermaid", readme, "the poster already shows before and after")
+
     def test_skill_name_matches_folder_and_plugin(self):
         self.assertIn(f"name: {SKILL.name}\n", (SKILL / "SKILL.md").read_text())
         self.assertEqual(json.loads((ROOT / "claude/.claude-plugin/plugin.json").read_text())["name"], SKILL.name)
