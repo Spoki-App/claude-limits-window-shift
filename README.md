@@ -14,7 +14,9 @@ This starts it for you, before your day begins.
 
 An open source project by [Spoki](https://spoki.com).
 
-<a href="media/claude-limits-window-shift-launch-16x9.mp4"><img src="media/poster.jpg" width="720" alt="Watch the 25-second video: a tiny OK at 6:00 gives you 3 fresh Claude windows during your workday instead of 2."></a>
+<a href="https://cdn.jsdelivr.net/gh/Spoki-App/claude-limits-window-shift@main/media/claude-limits-window-shift-launch-16x9.mp4"><img src="media/poster.jpg" width="720" alt="Watch the 25-second video: a tiny OK at 6:00 gives you 3 fresh Claude windows during your workday instead of 2."></a>
+
+<sub>Click to play it in your browser · 25 seconds · sound on</sub>
 
 </div>
 
@@ -28,22 +30,7 @@ Set up claude-limits-window-shift by following https://raw.githubusercontent.com
 
 That's it. Claude sets everything up and tells you your new windows.
 
-## What changes
-
-```mermaid
-gantt
-    dateFormat HH:mm
-    axisFormat %H:%M
-    section Your day
-    Work                  :active, 09:00, 18:00
-    section Before
-    Window 1              :09:00, 14:00
-    Window 2              :14:00, 19:00
-    section After
-    Window 1              :06:00, 11:00
-    Window 2              :11:00, 16:00
-    Window 3              :16:00, 21:00
-```
+## Before and after
 
 | A 9-to-6 day | Before | After |
 |---|---|---|
