@@ -1,6 +1,6 @@
 {
   "name": "limits-window-shift",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Plan and send tiny warm-ups so Claude's 5-hour windows line up with your work hours, and see your weekly pace.",
   "author": {
     "name": "Spoki",

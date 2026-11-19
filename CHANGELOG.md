@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-19
+
 ### Added
 - Night guard and late warm-up: two more cloud tasks in `cloud-spec` (`routines` in `--json`). A session that runs on the account during the night opens its own window and used to swallow the 06:07 warm-up; the guard keeps night sessions inside a window that ends before the warm-up, and the late warm-up opens the window once a night one has ended.
 - `plan --night-run HH:MM` replays a night with other sessions and shows which message opened each window.
