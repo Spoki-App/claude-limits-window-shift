@@ -27,7 +27,16 @@ DRIFT_TOLERANCE_SECONDS = 3600
 CLOUD_TOOLS = ["Read"]
 CLOUD_MODEL = "claude-haiku-5-5"
 CLOUD_PROMPT = "Reply with the single word OK. Do not use any tool."
-ROUTINE_NAME = "claude-limits-window-shift warm-up"
+ROUTINE_NAMES = {
+    service.GUARD: "claude-limits-window-shift night guard",
+    service.WARM_UP: "claude-limits-window-shift warm-up",
+    service.LATE: "claude-limits-window-shift late warm-up",
+}
+ROUTINE_PURPOSES = {
+    service.GUARD: "keeps night sessions inside a window that ends before the warm-up",
+    service.WARM_UP: "opens the first window of the workday",
+    service.LATE: "opens the window when a night session still had one open at the warm-up",
+}
 INSTALL_CLAUDE = "install it with curl -fsSL https://claude.ai/install.sh | bash"
 CLAUDE_CANDIDATES = ("~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude", "~/.claude/local/claude")
 
@@ -88,6 +97,10 @@ def load_config(required=True):
     if required and not config.get("workday"):
         raise CliError(EXIT_CONFIG, f"not set up yet: run {self_command('setup --start 09:00 --end 18:00')}")
     return config
+
+
+def cloud_fires(workday, plan):
+    return service.cloud_fires(plan, planner.parse_hhmm(workday.get("not_before", "00:00")))
 
 
 def workday_plan(workday):
@@ -201,6 +214,16 @@ def cmd_plan(args):
         raise CliError(EXIT_CONFIG, "pass --start and --end, or run setup first")
     plan, days = workday_plan(workday)
     print(planner.render_plan(plan, days))
+    if args.night_run:
+        print()
+        print(planner.render_night(plan, cloud_fires(workday, plan), night_sessions(args.night_run, plan)))
+
+
+def night_sessions(times, plan):
+    try:
+        return [planner.night_minute(text, plan) for text in times]
+    except planner.PlanError as error:
+        raise CliError(EXIT_CONFIG, str(error))
 
 
 def now_in(config, text=None):
@@ -341,6 +364,9 @@ def cmd_status(args):
     print(f"Workday {workday['start']}-{workday['end']} {planner.format_days(days)} ({workday['timezone']}), warm-up {planner.format_hhmm(plan.anchor)}, resets {resets}")
     print(f"Scheduler: {'installed' if service.installed() else 'not installed, run ' + self_command('install')}")
     print(f"Cloud warm-up: {service.cloud_cron(plan, days, workday['timezone'])} (create it once, see cloud-spec)")
+    helpers = [f"{role} {planner.format_hhmm(minute % 1440)}" for role, minute in cloud_fires(workday, plan) if role != service.WARM_UP]
+    if helpers:
+        print(f"Cloud helpers: {', '.join(helpers)} (create them once too, see cloud-spec)")
     for profile in selected_profiles(config, args.profile):
         state = store.load_state(profile["name"])
         decision, reason = planner.decide(now, plan, days, workday.get("skip_dates"), state)
@@ -382,9 +408,11 @@ def cmd_uninstall(_args):
 
 
 def cloud_spec(config):
-    plan, days = workday_plan(config["workday"])
-    timezone = config["workday"]["timezone"]
+    workday = config["workday"]
+    plan, days = workday_plan(workday)
+    timezone = workday["timezone"]
     minute = service.cloud_minute(plan)
+    routines = cloud_routines(cloud_fires(workday, plan), days, timezone)
     return {
         "cron": service.cloud_cron(plan, days, timezone),
         "local_time": planner.format_hhmm(minute),
@@ -396,16 +424,31 @@ def cloud_spec(config):
         "tools": CLOUD_TOOLS,
         "connectors": [],
         "useful_until": planner.format_hhmm(plan.latest),
-        "routine": routine_body(service.cloud_cron(plan, days, timezone)),
+        "routine": next(entry["routine"] for entry in routines if entry["role"] == service.WARM_UP),
+        "routines": routines,
     }
 
 
-def routine_body(cron):
+def cloud_routines(fires, days, timezone):
+    routines = []
+    for role, minute in fires:
+        cron = service.cron_at(minute, days, timezone)
+        routines.append({
+            "role": role,
+            "local_time": planner.format_hhmm(minute % 1440),
+            "cron": cron,
+            "purpose": ROUTINE_PURPOSES[role],
+            "routine": routine_body(ROUTINE_NAMES[role], cron),
+        })
+    return routines
+
+
+def routine_body(name, cron):
     message = {"role": "user", "content": CLOUD_PROMPT}
     event = {"uuid": str(uuid.uuid4()), "session_id": "", "type": "user", "parent_tool_use_id": None, "message": message}
     context = {"model": CLOUD_MODEL, "sources": [], "allowed_tools": CLOUD_TOOLS}
     return {
-        "name": ROUTINE_NAME,
+        "name": name,
         "cron_expression": cron,
         "enabled": True,
         "clear_mcp_connections": True,
@@ -418,15 +461,19 @@ def cmd_cloud_spec(args):
     if args.json:
         print(json.dumps(spec, indent=2))
         return 0
-    print("Cloud warm-up: a Claude Code scheduled task that opens the first window while your laptop sleeps.")
-    print(f"  Schedule:   {spec['cron']}  ({spec['local_time']} {spec['days']})")
-    print(f"  Prompt:     {spec['prompt']}")
-    print(f"  Model:      {spec['model']}")
-    print(f"  Tools:      {', '.join(spec['tools'])} only (an empty list is replaced by the full default set)")
-    print("  Repository, connectors: none")
-    print(f"  A run that starts late still helps until {spec['useful_until']}.")
-    print("Create it once from a Claude Code session logged in to the same account (/schedule),")
-    print("or from the scheduled tasks page of Claude Code on the web. Then check its tools and connectors.")
+    print("Cloud warm-up: Claude Code scheduled tasks that open the first window while your laptop sleeps.")
+    for entry in spec["routines"]:
+        print(f"  {entry['routine']['name']}")
+        print(f"    Schedule: {entry['cron']}  ({entry['local_time']})")
+        print(f"    Why:      {entry['purpose']}")
+    print("  Each one:")
+    print(f"    Prompt:     {spec['prompt']}")
+    print(f"    Model:      {spec['model']}")
+    print(f"    Tools:      {', '.join(spec['tools'])} only (an empty list is replaced by the full default set)")
+    print("    Repository, connectors: none")
+    print(f"  A warm-up that starts late still helps until {spec['useful_until']}.")
+    print("Create them once from a Claude Code session logged in to the same account (/schedule),")
+    print("or from the scheduled tasks page of Claude Code on the web. Then check their tools and connectors.")
     return 0
 
 
@@ -497,7 +544,9 @@ def build_parser():
     setup.add_argument("--config-dir", help="CLAUDE_CONFIG_DIR of that profile, default the current one")
     setup.add_argument("--remove-profile")
     setup.add_argument("--claude", help="path to the claude CLI")
-    workday_arguments(sub.add_parser("plan", help="show the best warm-up time for a workday"))
+    plan = sub.add_parser("plan", help="show the best warm-up time for a workday")
+    workday_arguments(plan)
+    plan.add_argument("--night-run", action="append", help="another session before work, HH:MM (repeatable): shows what the cloud tasks do about it")
     for name, text in (("status", "show windows, next action and weekly pace"), ("warm", "send one warm-up now"), ("tick", "what the scheduler runs every 5 minutes")):
         command = sub.add_parser(name, help=text)
         command.add_argument("--profile")

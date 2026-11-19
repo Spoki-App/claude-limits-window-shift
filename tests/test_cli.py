@@ -112,6 +112,39 @@ class SetupAndPlanTests(CliCase):
         self.assertRegex(event["uuid"], r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-")
         self.assertEqual(routine["job_config"]["ccr"]["environment_id"], "ENVIRONMENT_ID")
 
+    def test_cloud_spec_lists_every_routine_in_firing_order(self):
+        self.setup_workday()
+        spec = json.loads(self.run_cli("cloud-spec", "--json")[1])
+        told = [(entry["role"], entry["routine"]["name"], entry["cron"]) for entry in spec["routines"]]
+        self.assertEqual(told, [
+            ("night guard", "claude-limits-window-shift night guard", "CRON_TZ=Europe/Rome 52 0 * * 1-5"),
+            ("warm-up", "claude-limits-window-shift warm-up", "CRON_TZ=Europe/Rome 7 6 * * 1-5"),
+            ("late warm-up", "claude-limits-window-shift late warm-up", "CRON_TZ=Europe/Rome 25 7 * * 1-5"),
+        ])
+        self.assertEqual(spec["routine"], spec["routines"][1]["routine"])
+        for entry in spec["routines"]:
+            context = entry["routine"]["job_config"]["ccr"]["session_context"]
+            self.assertEqual((context["allowed_tools"], entry["routine"]["clear_mcp_connections"]), (["Read"], True))
+        self.assertEqual(len({entry["routine"]["job_config"]["ccr"]["events"][0]["data"]["uuid"] for entry in spec["routines"]}), 3)
+
+    def test_cloud_spec_text_names_each_task_and_why(self):
+        self.setup_workday()
+        _, out, _ = self.run_cli("cloud-spec")
+        for expected in ("claude-limits-window-shift night guard", "CRON_TZ=Europe/Rome 52 0 * * 1-5  (00:52)", "claude-limits-window-shift late warm-up", "(07:25)"):
+            self.assertIn(expected, out)
+
+    def test_plan_replays_a_night_with_other_sessions(self):
+        code, out, _ = self.run_cli("plan", "--start", "09:00", "--end", "18:00", "--night-run", "20:40", "--night-run", "02:16")
+        self.assertEqual(code, 0)
+        self.assertIn("With other sessions at 20:40 (-1d), 02:16:", out)
+        self.assertIn("07:25  late warm-up opens a window until 12:25", out)
+        self.assertIn("3 windows touch your workday", out)
+
+    def test_plan_refuses_a_bad_night_run(self):
+        code, _, err = self.run_cli("plan", "--start", "09:00", "--end", "18:00", "--night-run", "late")
+        self.assertEqual(code, cli.EXIT_CONFIG)
+        self.assertIn("invalid time", err)
+
     def test_setup_accepts_loose_hours(self):
         code, out, _ = self.run_cli("setup", "--start", "9", "--end", "18", "--timezone", "Europe/Rome", "--claude", self.claude)
         self.assertEqual(code, 0)
@@ -161,6 +194,7 @@ class TickTests(CliCase):
         self.assertIn("5h window: open until Thu 11:07, 1% used", out)
         self.assertIn("weekly: 40% used, resets Fri 22:00, 2 workdays left, about 30% per workday", out)
         self.assertIn("Cloud warm-up: CRON_TZ=Europe/Rome 7 6 * * 1-5", out)
+        self.assertIn("Cloud helpers: night guard 00:52, late warm-up 07:25", out)
 
     def test_auth_failure_exits_with_login_hint(self):
         self.outcome = {"ok": False, "error": "Not logged in", "error_kind": "auth", "status": None, "rejected": None, "windows": {}, "tokens": None}

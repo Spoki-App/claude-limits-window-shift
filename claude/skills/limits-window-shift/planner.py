@@ -9,6 +9,7 @@ GRACE_SECONDS = 60
 RETRY_SECONDS = 900
 WARM = "warm"
 SKIP = "skip"
+NIGHT_SESSION = "session"
 
 
 class PlanError(ValueError):
@@ -150,6 +151,49 @@ def render_plan(plan, days):
     lines += describe_windows(plan.windows)
     lines.append("")
     lines.append(f"Any warm-up between {format_hhmm(plan.earliest)} and {format_hhmm(plan.latest)} keeps {len(plan.windows)} windows.")
+    return "\n".join(lines)
+
+
+def replay(messages, window=WINDOW_MINUTES):
+    steps = []
+    end = None
+    for minute, label in sorted(messages):
+        opened = end is None or minute >= end
+        if opened:
+            end = minute + window
+        steps.append((minute, label, opened, end))
+    return steps
+
+
+def anchor_after(messages, plan):
+    opened = [(minute, end) for minute, _, is_new, end in replay(messages, plan.window) if is_new and minute <= plan.start]
+    if opened and opened[-1][1] > plan.start:
+        return opened[-1][0]
+    return plan.start
+
+
+def night_minute(text, plan):
+    minute = parse_hhmm(text)
+    return minute - 1440 if minute >= plan.start else minute
+
+
+def render_night(plan, fires, sessions):
+    messages = [(minute, role) for role, minute in fires] + [(minute, NIGHT_SESSION) for minute in sessions]
+    lines = [f"With other sessions at {', '.join(format_hhmm(minute) for minute in sorted(sessions))}:"]
+    for minute, label, opened, end in replay(messages, plan.window):
+        effect = f"opens a window until {format_hhmm(end)}" if opened else f"joins the window open until {format_hhmm(end)}"
+        lines.append(f"  {format_hhmm(minute)}  {label} {effect}")
+    anchor = anchor_after(messages, plan)
+    spans = useful_windows(anchor, plan.start, plan.end, plan.window, plan.margin)
+    lines.append("")
+    if anchor == plan.start:
+        lines.append(f"No window is open at {format_hhmm(plan.start)}: your first message starts one.")
+    lines.append(f"{len(spans)} windows touch your workday")
+    lines += describe_windows(spans)
+    if len(spans) < len(plan.windows):
+        lines.append("")
+        blind = f"between {format_hhmm(plan.latest - plan.window)} and {format_hhmm(plan.earliest)}, or after {format_hhmm(plan.latest)}"
+        lines.append(f"No warm-up can fix this night: a window opened {blind}, leaves no good time to start the next one.")
     return "\n".join(lines)
 
 
