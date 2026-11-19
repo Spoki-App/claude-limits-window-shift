@@ -25,7 +25,7 @@ An open source project by [Spoki](https://spoki.com).
 Paste this into Claude Code, with your own hours:
 
 ```text
-Set up claude-limits-window-shift by following https://raw.githubusercontent.com/Spoki-App/claude-limits-window-shift/main/SETUP.md (install it, start its scheduler, create its daily cloud task). I work 9-18, Monday to Friday.
+Set up claude-limits-window-shift by following https://raw.githubusercontent.com/Spoki-App/claude-limits-window-shift/main/SETUP.md (install it, start its scheduler, create its daily cloud tasks). I work 9-18, Monday to Friday.
 ```
 
 That's it. Claude sets everything up and tells you your new windows.

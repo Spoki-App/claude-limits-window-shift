@@ -9,6 +9,12 @@ LABEL = "com.spoki.claude-limits-window-shift"
 UNIT = "claude-limits-window-shift"
 INTERVAL_SECONDS = 300
 CLOUD_OFFSET_MINUTES = 7
+GUARD_LEAD_MINUTES = 15
+LATE_LEAD_MINUTES = 5
+LATE_GAP_MINUTES = 30
+GUARD = "night guard"
+WARM_UP = "warm-up"
+LATE = "late warm-up"
 
 
 def launch_agent_path(home=None):
@@ -142,6 +148,24 @@ def cloud_minute(plan):
     return minute if minute <= plan.latest else plan.anchor
 
 
+def cron_at(minute, days, timezone):
+    shift, minute = divmod(minute, 1440)
+    return f"CRON_TZ={timezone} {minute % 60} {minute // 60} * * {cron_days((day + shift) % 7 for day in days)}"
+
+
 def cloud_cron(plan, days, timezone):
-    minute = cloud_minute(plan)
-    return f"CRON_TZ={timezone} {minute % 60} {minute // 60} * * {cron_days(days)}"
+    return cron_at(cloud_minute(plan), days, timezone)
+
+
+def cloud_fires(plan, not_before=0):
+    warm_up = cloud_minute(plan)
+    fires = [(WARM_UP, warm_up)]
+    if plan.gain <= 0:
+        return fires
+    guard = warm_up - plan.window - GUARD_LEAD_MINUTES
+    if not not_before or guard >= not_before:
+        fires.insert(0, (GUARD, guard))
+    late = plan.latest - LATE_LEAD_MINUTES
+    if late - warm_up >= LATE_GAP_MINUTES:
+        fires.append((LATE, late))
+    return fires
